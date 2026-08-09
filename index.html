@@ -179,7 +179,27 @@
         </div>
     </div>
 
+    <!-- Firebase Realtime Database SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
     <script>
+        // Конфигурация Firebase
+       const firebaseConfig = {
+            apiKey: "AIzaSyAW9W3M4p5yHxfwN4lhOot3YWxFoPKciEA",
+            authDomain: "diary-1c00d.firebaseapp.com",
+            databaseURL: "https://diary-1c00d-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "diary-1c00d",
+            storageBucket: "diary-1c00d.appspot.com",
+            messagingSenderId: "576706054131",
+            appId: "1:576706054131:web:c8a711d8d429a363dbb486"
+        };
+
+        // Инициализация Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const trackerRef = database.ref('school_tracker_data');
+
         // Days definition
         const DAYS = [
             { id: 'mon', name: 'Понедельник', short: 'ПН' },
@@ -230,30 +250,28 @@
         let activeDay = 'mon';
         let trackerData = {};
 
-        // Load data from localStorage or fallback to default
-        function loadData() {
-            const saved = localStorage.getItem('school_tracker_data_v1');
-            if (saved) {
-                try {
-                    trackerData = JSON.parse(saved);
-                } catch(e) {
-                    trackerData = DEFAULT_DATA;
-                }
+        // Подписка на обновления из Firebase (Realtime Sync)
+        trackerRef.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                trackerData = data;
             } else {
                 trackerData = DEFAULT_DATA;
+                saveData(); // Заполняем базу начальными данными
             }
 
-            // Ensure structure for all days
             DAYS.forEach(day => {
                 if (!trackerData[day.id]) {
                     trackerData[day.id] = { lessons: [], homework: [], habits: [] };
                 }
             });
-        }
+
+            initDaysNav();
+            render();
+        });
 
         function saveData() {
-            localStorage.setItem('school_tracker_data_v1', JSON.stringify(trackerData));
-            render();
+            trackerRef.set(trackerData);
         }
 
         function initDaysNav() {
@@ -290,14 +308,12 @@
             const completed = allItems.filter(i => i.done).length;
             const percentage = total === 0 ? 0 : Math.round((completed / total) * 100);
 
-            // Update UI
             document.getElementById('progress-percent').innerText = `${percentage}%`;
             document.getElementById('progress-ratio').innerText = `${completed} из ${total}`;
             
             const circle = document.getElementById('progress-circle');
             circle.setAttribute('stroke-dasharray', `${percentage}, 100`);
 
-            // Motivational messages
             const msgEl = document.getElementById('progress-message');
             if (total === 0) {
                 msgEl.innerText = 'На этот день пока нет запланированных дел.';
@@ -361,7 +377,7 @@
 
             const priorityBadges = {
                 high: '<span class="px-2.5 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-700"><i class="fa-solid fa-fire mr-1 text-xs"></i>Срочно</span>',
-                medium: '<span class="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700">Обычно</span>',
+                medium: '<span class="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700">Ообычно</span>',
                 low: '<span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">Низкий</span>'
             };
 
@@ -551,7 +567,7 @@
             } else if (type === 'habit') {
                 const title = document.getElementById('field-title').value;
                 const category = document.getElementById('field-category').value;
-                const time = document.getElementById('field-habit-time').value || '';
+                const time = document.getElementById('field-habit-time').value;
 
                 trackerData[activeDay].habits.push({ id, title, category, time, done: false });
             }
@@ -559,12 +575,6 @@
             saveData();
             closeModal();
         }
-
-        window.onload = function() {
-            loadData();
-            initDaysNav();
-            render();
-        };
     </script>
 </body>
 </html>
