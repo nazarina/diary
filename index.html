@@ -150,7 +150,7 @@
 
     <!-- Modal Dialog -->
     <div id="modal-overlay" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-white rounded-2xl shadow-xl border border-slate-100 max-w-md w-full p-7 relative transform transition-all scale-100">
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-100 max-w-md w-full p-7 relative transform transition-all scale-100 max-h-[90vh] overflow-y-auto custom-scrollbar">
             
             <div class="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
                 <h3 id="modal-title" class="font-bold text-slate-800 text-2xl">Добавить запись</h3>
@@ -167,7 +167,15 @@
                     <!-- Fields injected via JS -->
                 </div>
 
-                <div class="flex justify-end gap-3 pt-3">
+                <!-- Days Selector Block -->
+                <div class="border-t border-slate-100 pt-4">
+                    <label class="block text-sm font-semibold text-slate-700 mb-2">В какие дни добавить?</label>
+                    <div class="grid grid-cols-2 gap-2 text-sm text-slate-600" id="days-checkboxes">
+                        <!-- Checkboxes injected via JS -->
+                    </div>
+                </div>
+
+                <div class="flex justify-end gap-3 pt-3 border-t border-slate-100">
                     <button type="button" onclick="closeModal()" class="px-5 py-2.5 rounded-xl text-base font-semibold text-slate-600 hover:bg-slate-100 transition">
                         Отмена
                     </button>
@@ -473,6 +481,28 @@
             }
         }
 
+        function renderDaysCheckboxes() {
+            const container = document.getElementById('days-checkboxes');
+            let html = `
+                <label class="col-span-2 flex items-center gap-2 font-medium pb-1 border-b border-slate-100 text-indigo-600 cursor-pointer">
+                    <input type="checkbox" id="select-all-days" onchange="toggleSelectAllDays(this)" class="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300">
+                    <span>Выбрать все дни</span>
+                </label>
+            `;
+            html += DAYS.map(day => `
+                <label class="flex items-center gap-2 cursor-pointer hover:text-slate-900 transition">
+                    <input type="checkbox" name="target-day" value="${day.id}" ${day.id === activeDay ? 'checked' : ''} class="day-checkbox w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300">
+                    <span>${day.name}</span>
+                </label>
+            `).join('');
+            container.innerHTML = html;
+        }
+
+        function toggleSelectAllDays(master) {
+            const checkboxes = document.querySelectorAll('.day-checkbox');
+            checkboxes.forEach(cb => cb.checked = master.checked);
+        }
+
         function openModal(type) {
             const overlay = document.getElementById('modal-overlay');
             const titleEl = document.getElementById('modal-title');
@@ -526,6 +556,7 @@
                 `;
             }
 
+            renderDaysCheckboxes();
             overlay.classList.remove('hidden');
         }
 
@@ -536,35 +567,52 @@
         function handleFormSubmit(e) {
             e.preventDefault();
             const type = document.getElementById('item-type').value;
-            const id = 'item_' + Date.now();
 
-            if (!trackerData[activeDay]) {
-                trackerData[activeDay] = { lessons: [], homework: [], habits: [] };
+            // Сбор всех выбранных дней
+            const selectedDays = Array.from(document.querySelectorAll('.day-checkbox:checked')).map(cb => cb.value);
+
+            if (selectedDays.length === 0) {
+                alert('Пожалуйста, выберите хотя бы один день!');
+                return;
             }
+
+            let newItemData = {};
 
             if (type === 'lesson') {
                 const name = document.getElementById('field-name').value.trim();
                 const time = document.getElementById('field-time').value.trim() || '—';
-                if (name) {
-                    if (!trackerData[activeDay].lessons) trackerData[activeDay].lessons = [];
-                    trackerData[activeDay].lessons.push({ id, name, time, done: false });
-                }
+                if (!name) return;
+                newItemData = { name, time };
             } else if (type === 'homework') {
                 const subject = document.getElementById('field-subject').value.trim();
                 const task = document.getElementById('field-task').value.trim();
-                if (subject && task) {
-                    if (!trackerData[activeDay].homework) trackerData[activeDay].homework = [];
-                    trackerData[activeDay].homework.push({ id, subject, task, done: false });
-                }
+                if (!subject || !task) return;
+                newItemData = { subject, task };
             } else if (type === 'habit') {
                 const title = document.getElementById('field-title').value.trim();
                 const category = document.getElementById('field-category').value;
                 const time = document.getElementById('field-habit-time').value.trim();
-                if (title) {
-                    if (!trackerData[activeDay].habits) trackerData[activeDay].habits = [];
-                    trackerData[activeDay].habits.push({ id, title, category, time, done: false });
-                }
+                if (!title) return;
+                newItemData = { title, category, time };
             }
+
+            // Добавление дела во все отмеченные дни
+            selectedDays.forEach(dayId => {
+                if (!trackerData[dayId]) {
+                    trackerData[dayId] = { lessons: [], homework: [], habits: [] };
+                }
+
+                const collectionKey = type === 'lesson' ? 'lessons' : (type === 'homework' ? 'homework' : 'habits');
+                if (!trackerData[dayId][collectionKey]) {
+                    trackerData[dayId][collectionKey] = [];
+                }
+
+                trackerData[dayId][collectionKey].push({
+                    id: 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                    ...newItemData,
+                    done: false
+                });
+            });
 
             saveData();
             closeModal();
